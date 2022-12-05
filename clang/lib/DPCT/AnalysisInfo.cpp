@@ -2364,10 +2364,9 @@ inline void DeviceFunctionDeclInModule::insertWrapper() {
   {
     auto FunctionBlock = Printer.block();
     Printer.indent();
-#ifdef _WIN32
-    Printer << "__declspec(dllexport) ";
-#endif
-    Printer << "void " << FuncName << "_wrapper(" << MapNames::getClNamespace()
+    requestFeature(HelperFeatureEnum::Kernel_dpct_export_define,
+                   FilePath);
+    Printer << "DPCT_EXPORT void " << FuncName << "_wrapper(" << MapNames::getClNamespace()
             << "queue &queue, const " << MapNames::getClNamespace()
             << "nd_range<3> &nr, unsigned int localMemSize, void "
                "**kernelParams, void **extra)";
@@ -2385,6 +2384,7 @@ inline void DeviceFunctionDeclInModule::insertWrapper() {
       {
         auto BodyBlock = Printer.block();
         Printer.newLine();
+	requestFeature(HelperFeatureEnum::Util_args_selector, FilePath);
 	Printer.line("args_selector<"
 		     + std::to_string(NonDefaultParamNum) + ", "
 		     + std::to_string(ParamsNum-NonDefaultParamNum) + ", "
