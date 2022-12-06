@@ -709,7 +709,6 @@ public:
 // DPCT_LABEL_BEGIN|args_selector|dpct
 // DPCT_DEPENDENCY_EMPTY
 // DPCT_CODE
-
 template <int n_nondefault_params, int n_default_params, typename T>
 class args_selector;
 
