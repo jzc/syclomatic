@@ -571,6 +571,9 @@ void DpctFileInfo::insertHeader(HeaderType Type) {
     case HT_Complex:
       return insertHeader(HeaderType::HT_Complex, LastIncludeOffset,
                           "<complex>");
+    case HT_Functional:
+      return insertHeader(HeaderType::HT_Functional, LastIncludeOffset,
+                          "<functional>");
     case HT_Thread:
       return insertHeader(HeaderType::HT_Thread, LastIncludeOffset, "<thread>");
     case HT_Future:
@@ -2361,45 +2364,38 @@ inline void DeviceFunctionDeclInModule::insertWrapper() {
   {
     auto FunctionBlock = Printer.block();
     Printer.indent();
-#ifdef _WIN32
-    Printer << "__declspec(dllexport) ";
-#endif
-    Printer << "void " << FuncName << "_wrapper(" << MapNames::getClNamespace()
+    requestFeature(HelperFeatureEnum::Kernel_dpct_export_define,
+                   FilePath);
+    Printer << "DPCT_EXPORT void " << FuncName << "_wrapper(" << MapNames::getClNamespace()
             << "queue &queue, const " << MapNames::getClNamespace()
             << "nd_range<3> &nr, unsigned int localMemSize, void "
                "**kernelParams, void **extra)";
     if (HasBody) {
-      Printer << "{";
+      auto for_each_parameter = [&](auto F) {
+	auto it = getParametersInfo().begin();
+	for (int i = 0;
+	     it != getParametersInfo().end();
+	     ++it, ++i) {
+	  F(i, it->second);
+	}
+      };
+
+      Printer << " {";
       {
         auto BodyBlock = Printer.block();
         Printer.newLine();
-        for (auto It = getParametersInfo().begin();
-             It != getParametersInfo().end(); It++) {
-          Printer.line(It->first + " " + It->second + ";");
-        }
-        Printer.line("if(kernelParams){");
-        {
-          auto IfBlock = Printer.block();
-          auto Counter = 0;
-          for (auto It = getParametersInfo().begin();
-               It != getParametersInfo().end(); It++) {
-            Printer.line(It->second + " = (" + It->first + ")kernelParams[" +
-                         std::to_string(Counter) + "];");
-            Counter += 1;
-          }
-        }
-        Printer.line("} else {");
-        {
-          auto ElseBlock = Printer.block();
-          std::string ExtraOffsetStr = "sizeof(void*)";
-          for (auto It = getParametersInfo().begin();
-               It != getParametersInfo().end(); It++) {
-            Printer.line(It->second + " = (" + It->first + ")(extra + " +
-                         ExtraOffsetStr + ");");
-            ExtraOffsetStr += " + sizeof(" + It->first + ")";
-          }
-        }
-        Printer.line("}");
+	requestFeature(HelperFeatureEnum::Util_args_selector, FilePath);
+	Printer.line(MapNames::getDpctNamespace() + "args_selector<"
+		     + std::to_string(NonDefaultParamNum) + ", "
+		     + std::to_string(ParamsNum-NonDefaultParamNum) + ", "
+		     + "decltype(" + FuncName
+		     + ")> selector(kernelParams, extra);");
+	for_each_parameter([&](auto&& i, auto&& p) {
+	  Printer.line("auto& " + p
+		       + " = selector.get<"
+		       + std::to_string(i) + ">();");
+	});
+
         Kernel->buildInfo();
         Printer.line(Kernel->getReplacement());
       }
